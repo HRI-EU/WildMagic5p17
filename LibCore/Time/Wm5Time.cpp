@@ -21,55 +21,75 @@ static bool gsInitializedTime = false;
 static long gsInitialSec = 0;
 static long gsInitialUSec = 0;
 static bool gsInitializedTime = false;
+
+// This method has been added to eliminate warnings coming from the deprecated ftime function.
+static void ftime_replacement(struct timeb* tp)
+{
+  struct timespec ts;
+
+  // Use CLOCK_REALTIME to get the current time
+  if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
+  {
+    perror("clock_gettime");
+    return;
+  }
+
+  // Convert timespec to timeb structure
+  tp->time = ts.tv_sec;
+  tp->millitm = ts.tv_nsec / 1000000; // convert nanoseconds to milliseconds
+  tp->timezone = 0; // time zone information is not provided by clock_gettime
+  tp->dstflag = 0; // daylight saving time flag is not provided by clock_gettime
+}
+
 #endif
 
 //----------------------------------------------------------------------------
-int64_t GetTimeInMicroseconds ()
+int64_t GetTimeInMicroseconds()
 {
 #ifdef __APPLE__
-    if (!gsInitializedTime)
-    {
-        gsInitializedTime = true;
-        gettimeofday(&gsInitial, 0);
-    }
+  if (!gsInitializedTime)
+  {
+    gsInitializedTime = true;
+    gettimeofday(&gsInitial, 0);
+  }
 
-    struct timeval currentTime;
-    gettimeofday(&currentTime, 0);
-    
-    struct timeval deltaTime;
-    timersub(&currentTime, &gsInitial, &deltaTime);
+  struct timeval currentTime;
+  gettimeofday(&currentTime, 0);
 
-    return 1000000*deltaTime.tv_sec + deltaTime.tv_usec;
+  struct timeval deltaTime;
+  timersub(&currentTime, &gsInitial, &deltaTime);
+
+  return 1000000*deltaTime.tv_sec + deltaTime.tv_usec;
 #else
-    struct timeb currentTime;
+  struct timeb currentTime;
 
-    if (!gsInitializedTime)
-    {
-        gsInitializedTime = true;
-        ftime(&currentTime);
-        gsInitialSec = (long)currentTime.time;
-        gsInitialUSec = 1000*currentTime.millitm;
-    }
+  if (!gsInitializedTime)
+  {
+    gsInitializedTime = true;
+    ftime_replacement(&currentTime);
+    gsInitialSec = (long)currentTime.time;
+    gsInitialUSec = 1000*currentTime.millitm;
+  }
 
-    ftime(&currentTime);
-    long currentSec = (long)currentTime.time;
-    long currentUSec = 1000*currentTime.millitm;
-    long deltaSec = currentSec - gsInitialSec;
-    long deltaUSec = currentUSec - gsInitialUSec;
-    if (deltaUSec < 0)
-    {
-        deltaUSec += 1000000;
-        --deltaSec;
-    }
+  ftime_replacement(&currentTime);
+  long currentSec = (long)currentTime.time;
+  long currentUSec = 1000*currentTime.millitm;
+  long deltaSec = currentSec - gsInitialSec;
+  long deltaUSec = currentUSec - gsInitialUSec;
+  if (deltaUSec < 0)
+  {
+    deltaUSec += 1000000;
+    --deltaSec;
+  }
 
-    return 1000000*deltaSec + deltaUSec;
+  return 1000000*deltaSec + deltaUSec;
 #endif
 }
 //----------------------------------------------------------------------------
-double GetTimeInSeconds ()
+double GetTimeInSeconds()
 {
-    int64_t microseconds = GetTimeInMicroseconds();
-    return 1e-06*microseconds;
+  int64_t microseconds = GetTimeInMicroseconds();
+  return 1e-06*microseconds;
 }
 //----------------------------------------------------------------------------
 
