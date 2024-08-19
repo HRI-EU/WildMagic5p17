@@ -23,6 +23,7 @@ static long gsInitialUSec = 0;
 static bool gsInitializedTime = false;
 
 // This method has been added to eliminate warnings coming from the deprecated ftime function.
+#ifndef WIN32
 static void ftime_replacement(struct timeb* tp)
 {
   struct timespec ts;
@@ -40,6 +41,7 @@ static void ftime_replacement(struct timeb* tp)
   tp->timezone = 0; // time zone information is not provided by clock_gettime
   tp->dstflag = 0; // daylight saving time flag is not provided by clock_gettime
 }
+#endif   // WIN32
 
 #endif
 
@@ -66,12 +68,21 @@ int64_t GetTimeInMicroseconds()
   if (!gsInitializedTime)
   {
     gsInitializedTime = true;
+#ifdef WIN32
+    ftime(&currentTime);
+#else
     ftime_replacement(&currentTime);
+#endif
     gsInitialSec = (long)currentTime.time;
     gsInitialUSec = 1000*currentTime.millitm;
   }
 
+#ifdef WIN32
+  ftime(&currentTime);
+#else
   ftime_replacement(&currentTime);
+#endif
+
   long currentSec = (long)currentTime.time;
   long currentUSec = 1000*currentTime.millitm;
   long deltaSec = currentSec - gsInitialSec;
